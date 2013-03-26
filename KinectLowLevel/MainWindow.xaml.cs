@@ -171,7 +171,7 @@ namespace KinectLowLevel
                 {
                     string filedir = @"C:\temp\kinectTest\";
 
-                    // color
+                    #region color image dump
                     string bmpPath =
                         System.IO.Path.Combine(filedir, "c" + index.ToString() + ".bmp");
 
@@ -184,8 +184,9 @@ namespace KinectLowLevel
                         pixels, stride);
                     encoderColor.Frames.Add(BitmapFrame.Create(bitmapColor));
                     encoderColor.Save(streamColor);
+                    #endregion
 
-                    // depth - mm
+                    #region depth dump
 
                     // int depth = depthPoint >> DepthImageFrame.PlayerIndexBitmaskWidth
                     //using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
@@ -209,10 +210,29 @@ namespace KinectLowLevel
                     //    new FileStream(depthPath, FileMode.Create);
 
                     File.WriteAllText(depthPath, depthString);
-                    
+
+                    #endregion
+
+
+                    #region image correspondance dump
+
+                    // LINQ yo
+                    string xMapStr = string.Join(",", cImPts.Select(x => x.X));
+                    string xMapPath = System.IO.Path.Combine(filedir, "x" + index.ToString() + ".csv");
+
+                    File.WriteAllText(xMapPath, xMapStr);
+
+                    string yMapStr = string.Join(",", cImPts.Select(x => x.Y));
+                    string yMapPath = System.IO.Path.Combine(filedir, "y" + index.ToString() + ".csv");
+
+                    File.WriteAllText(yMapPath, yMapStr);
+
+                    #endregion
+
 
                     dumpNextFrame = false;
                     index++;
+                    
                 }
             }
         }
