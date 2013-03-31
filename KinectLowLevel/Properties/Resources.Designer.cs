@@ -67,5 +67,7 @@ namespace KinectLowLevel.Properties
                 resourceCulture = value;
             }
         }
+
+        public static System.IFormatProvider MessageGenericArithmeticNotDefined { get; set; }
     }
 }

@@ -26,6 +26,7 @@ namespace KinectLowLevel
         private readonly KinectSensorChooser _sensorChooser;
         private bool dumpNextFrame = false;
         private int index = 0;
+        private bool getPointCloud = false;
 
 
         public MainWindow()
@@ -42,7 +43,7 @@ namespace KinectLowLevel
 
             KinectSensor newSensor = _sensorChooser.Kinect;
 
-            newSensor.ColorStream.Enable(ColorImageFormat.RgbResolution1280x960Fps12);
+            newSensor.ColorStream.Enable(ColorImageFormat.RgbResolution640x480Fps30);
             newSensor.DepthStream.Enable(DepthImageFormat.Resolution640x480Fps30);
             newSensor.DepthStream.Range = DepthRange.Default;
             newSensor.SkeletonStream.Enable();
@@ -130,32 +131,54 @@ namespace KinectLowLevel
 
                 ColorImagePoint[] cImPts = new ColorImagePoint[depthFrame.Width * depthFrame.Height];
 
-                int dStride = depthFrame.Width * 4;
+                int dStride = colorFrame.Width * 4; // this stride is associated with making the depths into grayscale, not the actual data
 
                 _sensorChooser.Kinect.CoordinateMapper.MapDepthFrameToColorFrame(depthFrame.Format, dImPix,
                     colorFrame.Format, cImPts);
                 // need to take the pixels from the depth frame and plot them at the coordinates of the other frame
+                // this implementation shifts the depth image at its own scale, otherwise there will be holes in the shift
+                //(I think???)
 
-                short[] depthShifted = new short[depthFrame.PixelDataLength];
+                //short[] depthShifted = new short[depthFrame.PixelDataLength];
+                //Array.Clear(depthShifted, 0, depthShifted.Length);
+
+                //int colorToDepthDivisor = colorFrame.Width / depthFrame.Width;
+                //// probably incredibly slow
+                //for (int i = 0; i < cImPts.Length; i++)
+                //{
+                //    int x = cImPts[i].X/colorToDepthDivisor;
+                //    int y = cImPts[i].Y/colorToDepthDivisor;
+                //    if ((x >= depthFrame.Width) || (y >= depthFrame.Height))
+                //    {
+                //        continue;
+                //    }
+
+                //    // we index from the upper left like civilized people
+                //    depthShifted[y * depthFrame.Width + x] =
+                //        dImPix[i].Depth;
+                //}
+
+                // let's try shifting into an image frame and see how it goes
+                short[] depthShifted = new short[colorFrame.Width * colorFrame.Height];
                 Array.Clear(depthShifted, 0, depthShifted.Length);
 
-                int colorToDepthDivisor = colorFrame.Width / depthFrame.Width;
-                // probably incredibly slow
                 for (int i = 0; i < cImPts.Length; i++)
                 {
-                    int x = cImPts[i].X/colorToDepthDivisor;
-                    int y = cImPts[i].Y/colorToDepthDivisor;
-                    if ((x >= depthFrame.Width) || (y >= depthFrame.Height))
+                    int x = cImPts[i].X;
+                    int y = cImPts[i].Y;
+
+                    if ((x >= colorFrame.Width) || (y >= colorFrame.Height))
                     {
                         continue;
                     }
 
-                    // we index from the upper left like civilized people
-                    depthShifted[y * depthFrame.Width + x] =
+                    depthShifted[y * colorFrame.Width + x] =
                         dImPix[i].Depth;
                 }
 
-                byte[] depthIntensities = GenerateColoredBytes(depthShifted, depthFrame.Height, depthFrame.Width);
+
+                // 
+                byte[] depthIntensities = GenerateColoredBytes(depthShifted, colorFrame.Height, colorFrame.Width);
 
                 // let's just slam the depth image over the other one right now
                 //
@@ -163,9 +186,10 @@ namespace KinectLowLevel
                 //byte[] dPixels = GenerateColoredBytes(depthFrame);
 
                 depthImage.Source =
-                    BitmapSource.Create(depthFrame.Width, depthFrame.Height,
+                    BitmapSource.Create(colorFrame.Width, colorFrame.Height,
                     96, 96, PixelFormats.Bgr32, null, depthIntensities, dStride);
 
+                #region framedumping
                 // debugging-level, change to make nicer
                 if (dumpNextFrame == true)
                 {
@@ -233,6 +257,14 @@ namespace KinectLowLevel
                     dumpNextFrame = false;
                     index++;
                     
+                } // endif dump frame
+                #endregion
+
+                if (getPointCloud)
+                {
+                    PointCloud points = new PointCloud(depthShifted, depthFrame.Width, depthFrame.Height,
+                                                        pixels, colorFrame.Width, colorFrame.Height);
+                    getPointCloud = false;
                 }
             }
         }
@@ -321,6 +353,11 @@ namespace KinectLowLevel
         public static byte CalculateIntensityFromDepth(int distance)
         {
             return (byte)(255 - (255 * Math.Max(distance - 800, 0) / 4000));
+        }
+
+        private void CloudButton_Click(object sender, RoutedEventArgs e)
+        {
+            getPointCloud = true;
         }
     }
 }
